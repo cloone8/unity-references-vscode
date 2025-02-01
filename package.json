@@ -31,15 +31,20 @@
     "lint": "eslint src",
     "test": "vscode-test"
   },
+  "dependencies": {
+    "yauzl": "^3.2.0"
+  },
   "devDependencies": {
     "@types/vscode": "^1.96.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@typescript-eslint/eslint-plugin": "^8.17.0",
     "@typescript-eslint/parser": "^8.17.0",
+    "@types/yauzl": "^2.10.3",
     "eslint": "^9.16.0",
     "typescript": "^5.7.2",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "@octokit/types": "^13.8.0"
   }
 }
