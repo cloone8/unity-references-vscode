@@ -1,5 +1,6 @@
 {
   "name": "unity-references",
+  "publisher": "io.wutru",
   "displayName": "Unity References",
   "description": "Resolve code references within a Unity project",
   "version": "0.0.1",
@@ -9,7 +10,9 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:csharp"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -21,7 +24,18 @@
         "command": "unity-references.findSymbols",
         "title": "Dump Symbols"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Unity References",
+      "properties": {
+        "unity-references.customServerPath": {
+          "type": "string",
+          "default": "",
+          "description": "The path to the custom server binary on disk. If empty, automatically downloads the latest server version.",
+          "scope": "machine"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -32,19 +46,22 @@
     "test": "vscode-test"
   },
   "dependencies": {
+    "jayson": "^4.1.3",
+    "ws": "^8.18.0",
     "yauzl": "^3.2.0"
   },
   "devDependencies": {
-    "@types/vscode": "^1.96.0",
+    "@octokit/types": "^13.8.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
+    "@types/vscode": "^1.96.0",
+    "@types/ws": "^8.5.14",
+    "@types/yauzl": "^2.10.3",
     "@typescript-eslint/eslint-plugin": "^8.17.0",
     "@typescript-eslint/parser": "^8.17.0",
-    "@types/yauzl": "^2.10.3",
-    "eslint": "^9.16.0",
-    "typescript": "^5.7.2",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
-    "@octokit/types": "^13.8.0"
+    "eslint": "^9.16.0",
+    "typescript": "^5.7.2"
   }
 }

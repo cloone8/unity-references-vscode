@@ -1,243 +1,137 @@
-import * as vscode from 'vscode';
-import * as os from 'os';
-import { Endpoints } from "@octokit/types";
-import { assert } from 'console';
-import * as yauzl from 'yauzl';
-import * as stream from 'stream';
-import * as util from 'util';
+import * as vscode from "vscode";
+// import * as rpc from "vscode-jsonrpc/node";
+import * as jayson from "jayson/promise";
 
-export const SERVER_MAJOR_VERSION: number = 0;
-const SERVER_REPO_OWNER: string = "cloone8";
-const SERVER_REPO_NAME: string = "unity-reference-server";
+import { ChildProcess, spawn } from 'child_process';
+import { WebSocket } from "ws";
+import { StatusResponse } from "./requests";
+import { JSONRPCResponse } from "jayson";
 
-export async function ensureServer(ctx: vscode.ExtensionContext) {
-    const latestRelease = await fetchLatestRelease();
+export default class Server implements vscode.Disposable {
+    private process: ChildProcess;
+    private client: jayson.Client;
 
-    if (latestRelease !== undefined) {
-        vscode.window.showInformationMessage(`Latest release: ${latestRelease.tag} @ ${latestRelease.platformAssetUrl}`);
-
-        await downloadAndInstallRelease(latestRelease.tag, latestRelease.platformAssetUrl, latestRelease.platformAssetName, vscode.Uri.joinPath(ctx.globalStorageUri, "server"));
-    } else {
-        vscode.window.showErrorMessage("Latest release not found");
+    private constructor(process: ChildProcess, client: jayson.Client) {
+        this.process = process;
+        this.client = client;
     }
 
-}
+    static async start(serverExecutable: vscode.Uri, folder: vscode.Uri): Promise<Server | ServerStartError> {
+        console.log("Starting executable");
+        console.log(serverExecutable.fsPath);
 
-async function downloadAndInstallRelease(tag: string, url: string, name: string, installdir: vscode.Uri) {
-    let fetchResult = await fetch(url);
+        let executableStat: vscode.FileStat;
 
-    if (!fetchResult.ok) {
-        vscode.window.showErrorMessage(`Download not OK: ${fetchResult.status}, ${await fetchResult.text()}`);
-        return;
-    }
-
-    const tempfile = os.tmpdir() + `/unity-references-vscode/${name}`;
-
-    console.log(`Writing download to ${tempfile}`);
-    console.log(`Installing download to ${installdir.fsPath}`);
-
-    await vscode.workspace.fs.writeFile(vscode.Uri.file(tempfile), new Uint8Array(await fetchResult.arrayBuffer()));
-    await vscode.workspace.fs.createDirectory(installdir);
-
-    if (name.endsWith(".zip")) {
-        console.log("unzipping");
-        await unzip(tempfile, installdir);
-    } else if (name.endsWith(".tar.xz")) {
-
-    } else if (name.endsWith(".tar.gz")) {
-
-    } else {
-        throw Error(`Unknown file format: ${name}`);
-    }
-}
-
-interface LatestRelease {
-    tag: string,
-    platformAssetName: string,
-    platformAssetUrl: string
-}
-
-type GithubReleases = Endpoints["GET /repos/{owner}/{repo}/releases"]["response"]["data"];
-
-async function fetchLatestRelease(): Promise<LatestRelease | undefined> {
-    const latestReleaseUrl = `https://api.github.com/repos/${SERVER_REPO_OWNER}/${SERVER_REPO_NAME}/releases`;
-
-    const response = await fetch(latestReleaseUrl);
-
-    if (!response.ok) {
-        console.error("Error retrieving latest releases from github");
-        return undefined;
-    }
-
-    const returnedReleases = await response.json() as GithubReleases;
-
-    const compatibleReleases = returnedReleases.map(rel => {
-        const version = parseTag(rel.tag_name);
-        return {
-            release: rel,
-            platformSpecificAsset: findPlatformSpecificAsset(rel),
-            version: version
-        };
-    })
-        .filter(rel => rel.version !== undefined)
-        .filter(rel => rel.platformSpecificAsset !== undefined)
-        .filter(rel => rel.version!.major === SERVER_MAJOR_VERSION);
-
-    console.log(`Found ${compatibleReleases.length} compatible releases with assets for this platform`);
-
-    compatibleReleases.sort((a, b) => {
-        const aVer = a.version!;
-        const bVer = b.version!;
-
-        if (aVer.major !== bVer.major) {
-            return aVer.major - bVer.major;
-        } else {
-            if (aVer.minor !== bVer.minor) {
-                return aVer.minor - bVer.minor;
+        try {
+            executableStat = await vscode.workspace.fs.stat(serverExecutable);
+        } catch (e) {
+            if (e instanceof vscode.FileSystemError && e.code === "FileNotFound") {
+                return ServerStartError.MISSING_EXECUTABLE;
             } else {
-                return aVer.patch - bVer.patch;
+                throw e;
             }
         }
-    });
 
-    if (compatibleReleases.length === 0) {
-        console.error("No compatible releases found");
-        return undefined;
-    }
+        const spawned = spawn(serverExecutable.fsPath, [folder.fsPath]);
 
-    const latest = compatibleReleases[0];
+        const localAddr = "127.0.0.1";
 
-    return {
-        tag: latest.release.tag_name,
-        platformAssetUrl: latest.platformSpecificAsset!.url,
-        platformAssetName: latest.platformSpecificAsset!.name,
-    };
-}
-
-interface SemVer {
-    major: number,
-    minor: number,
-    patch: number
-};
-
-function parseTag(tag: string): SemVer | undefined {
-    if (!tag.startsWith("v")) {
-        return undefined;
-    }
-
-    const numbersOnly = tag.substring(1);
-
-
-    const splitNumbers = numbersOnly.split(".");
-
-    if (splitNumbers.length !== 3) {
-        return undefined;
-    }
-
-    return {
-        major: Number(splitNumbers[0]),
-        minor: Number(splitNumbers[1]),
-        patch: Number(splitNumbers[2]),
-    };
-}
-
-function findPlatformSpecificAsset(release: GithubReleases[0]): { url: string, name: string } | undefined {
-    // Filter out the checksums first
-    const noChecksums = release.assets.filter(asset => !asset.name.endsWith(".sha256"));
-
-    const osStr = nodeOsToBuildStr(process.platform);
-    const archStr = nodeArchToBuildStr(process.arch);
-
-    if (osStr === undefined || archStr === undefined) {
-        console.log(`No OS or Arch strs ${osStr} ${archStr}`);
-        return undefined;
-    }
-
-    const matchingPlatform = noChecksums.filter(asset => asset.name.includes(osStr) && asset.name.includes(archStr));
-
-    if (matchingPlatform.length === 0) {
-        return undefined;
-    }
-
-    assert(matchingPlatform.length === 1);
-
-    return { url: matchingPlatform[0].browser_download_url, name: matchingPlatform[0].name };
-}
-
-function nodeOsToBuildStr(platform: NodeJS.Platform): string | undefined {
-    switch (platform) {
-        case "darwin":
-            return "apple-darwin";
-        case "android":
-        case "linux":
-            return "linux";
-        case "win32":
-        case "cygwin":
-            return "pc-windows";
-        default:
-            console.error("Current platform has no server target");
-            return undefined;
-    }
-};
-
-function nodeArchToBuildStr(arch: NodeJS.Architecture): string | undefined {
-    switch (arch) {
-        case "arm64":
-            return "aarch64";
-        case "x64":
-            return "x86_64";
-        default:
-            console.error("Current architecture has no server target");
-            return undefined;
-    }
-}
-
-const open: (file: string, options: yauzl.Options) => Promise<yauzl.ZipFile> = util.promisify(yauzl.open);
-
-async function unzip(zipfile: string, targetdir: vscode.Uri) {
-    const zip = await open(zipfile, { lazyEntries: true });
-    zip.readEntry();
-
-    zip.on("entry", async (entry: yauzl.Entry) => {
-        if (entry.fileName.endsWith("/")) {
-            console.log("Dir entry");
-            zip.readEntry();
-        } else {
-            console.log("File entry");
-            const targetFile = vscode.Uri.joinPath(targetdir, entry.fileName);
-            console.log(targetFile.fsPath);
-
-            const openReadStream = util.promisify(zip.openReadStream.bind(zip));
-
-            const readStream = await openReadStream(entry);
-            const buffers: Buffer[] = [];
-
-            const fullBufferPromise = new Promise<void>((resolve, reject) => {
-                readStream.on("data", (chunk) => {
-                    buffers.push(chunk);
-                });
-
-                readStream.on("end", () => {
-
-                    const fullBuffer = Buffer.concat(buffers);
-                    console.log(`Buffer has ${fullBuffer.byteLength} bytes`);
-
-                    vscode.workspace.fs.writeFile(targetFile, fullBuffer).then(() => {
-
-                        zip.readEntry();
-                        resolve();
-                    });
-                });
-
-                readStream.on("error", reject);
+        const portPromise = new Promise<string>((resolve) => {
+            spawned.stdout.once('data', (data) => {
+                resolve(data as string);
             });
+        });
 
-            await fullBufferPromise;
+        spawned.stderr.on('data', (data) => {
+            console.log(`stderr: ${data}`);
+        });
+
+        spawned.on("close", (code) => {
+            vscode.window.showInformationMessage(`Server exited with status ${code}`);
+        });
+
+        const localPort = await portPromise;
+        const addr = `${localAddr}:${localPort}`;
+
+        console.log(`Server address: ${addr}`);
+
+        const socket = new WebSocket(`ws://${addr}`);
+
+        const clientPromise = new Promise<jayson.Client>((resolve, reject) => {
+            socket.once("error", reject);
+            socket.once("open", () => {
+                socket.removeListener("error", reject);
+
+                resolve(jayson.client.websocket({
+                    ws: socket
+                }));
+            });
+        });
+
+        return new Server(spawned, await clientPromise);
+    }
+
+    dispose() {
+        if (this.process.exitCode === null) {
+            return;
         }
-    });
 
-    return new Promise((resolve, reject) => {
-        zip.on("end", resolve);
-        zip.on("error", reject);
-    });
+        this.process.kill();
+    }
+
+    public async status(): Promise<StatusResponse> {
+        const response = await this.doRawRequest<undefined, StatusResponse, void>("status");
+
+        if (response.isOk) {
+            return response.result;
+        } else {
+            throw new Error(`RPC Error: ${response.error}`);
+        }
+    }
+
+    private async doRawRequest<P extends jayson.RequestParamsLike, R, E>(method: string, params?: P): Promise<RpcResponse<R, E>> {
+        const rawResponse = await this.client.request(method, params);
+
+        if (!Object.hasOwn(rawResponse, "jsonrpc") && rawResponse["jsonrpc"] === "2.0") {
+            throw new Error("JsonRPC 1.0 response returned!");
+        }
+
+        const response = rawResponse as jayson.JSONRPCVersionTwoResponse;
+
+        if (Object.hasOwn(response, "error")) {
+            const errorResponse = response as jayson.JSONRPCVersionTwoResponseWithError;
+
+            return {
+                isOk: false,
+                error: {
+                    code: errorResponse.error.code,
+                    message: errorResponse.error.message,
+                    data: errorResponse.error.data as E
+                }
+            };
+        } else {
+            const okResponse = response as jayson.JSONRPCVersionTwoResponseWithResult;
+
+            return {
+                isOk: true,
+                result: okResponse.result as R
+            };
+        }
+    }
+}
+
+export type RpcResponse<R, E> =
+    {
+        isOk: true,
+        result: R
+    } | {
+        isOk: false, error: {
+            code: number,
+            message: string,
+            data: E
+        }
+    };
+
+export enum ServerStartError {
+    MISSING_EXECUTABLE,
 }
