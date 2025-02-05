@@ -3,6 +3,9 @@
 import * as vscode from 'vscode';
 import * as config from './config';
 import * as updater from './updater';
+import * as unityproject from './unityproject';
+import * as workspaces from './workspaces';
+
 import Server, { ServerStartError } from './server';
 
 export const SERVER_DIRECTORY = "server";
@@ -17,13 +20,13 @@ export async function activate(context: vscode.ExtensionContext) {
     // The command has been defined in the package.json file
     // Now provide the implementation of the command with registerCommand
     // The commandId parameter must match the command field in package.json
-    const helloWorld = vscode.commands.registerCommand('unity-references.helloWorld', async () => {
+    const helloWorld = vscode.commands.registerCommand('unity-references.restart', async () => {
         // The code you place here will be executed every time your command is executed
         // Display a message box to the user
 
         const customServerPath = config.customServerPath();
 
-        let serverExecutablePath;
+        let serverExecutablePath: vscode.Uri;
 
         if (customServerPath.trim().length !== 0) {
             serverExecutablePath = vscode.Uri.file(customServerPath);
@@ -37,18 +40,16 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        for (const workspaceFolder of vscode.workspace.workspaceFolders) {
+        await Promise.all(vscode.workspace.workspaceFolders.map(async (workspaceFolder) => {
+            const isUnityProject = await unityproject.hasUnityProject(workspaceFolder.uri);
 
-            const serverInstance = await Server.start(serverExecutablePath, workspaceFolder.uri);
-
-            if (!(serverInstance instanceof Server)) {
-                vscode.window.showErrorMessage(`Error starting the server: ${serverInstance as ServerStartError}`);
-                continue;
+            if (!isUnityProject) {
+                console.log(`Workspace ${workspaceFolder.name} does not have a unity project`);
+                return;
             }
 
-            context.subscriptions.push(serverInstance);
-            vscode.window.showInformationMessage(await serverInstance.status());
-        }
+            await workspaces.activateWorkspace(workspaceFolder, serverExecutablePath);
+        }));
     });
 
     context.subscriptions.push(helloWorld);

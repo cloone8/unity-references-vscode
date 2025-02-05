@@ -17,12 +17,12 @@
   "contributes": {
     "commands": [
       {
-        "command": "unity-references.helloWorld",
-        "title": "Hello World"
+        "command": "unity-references.restart",
+        "title": "Unity References: Restart Servers"
       },
       {
         "command": "unity-references.findSymbols",
-        "title": "Dump Symbols"
+        "title": "Unity References: Dump Symbols"
       }
     ],
     "configuration": {

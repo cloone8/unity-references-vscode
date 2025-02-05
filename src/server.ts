@@ -1,22 +1,22 @@
 import * as vscode from "vscode";
-// import * as rpc from "vscode-jsonrpc/node";
 import * as jayson from "jayson/promise";
 
 import { ChildProcess, spawn } from 'child_process';
 import { WebSocket } from "ws";
 import { StatusResponse } from "./requests";
-import { JSONRPCResponse } from "jayson";
 
 export default class Server implements vscode.Disposable {
     private process: ChildProcess;
     private client: jayson.Client;
+    private outputChannel: vscode.LogOutputChannel;
 
-    private constructor(process: ChildProcess, client: jayson.Client) {
+    private constructor(process: ChildProcess, client: jayson.Client, outputChannel: vscode.LogOutputChannel) {
         this.process = process;
         this.client = client;
+        this.outputChannel = outputChannel;
     }
 
-    static async start(serverExecutable: vscode.Uri, folder: vscode.Uri): Promise<Server | ServerStartError> {
+    static async start(serverExecutable: vscode.Uri, workspace: vscode.WorkspaceFolder): Promise<Server | ServerStartError> {
         console.log("Starting executable");
         console.log(serverExecutable.fsPath);
 
@@ -32,7 +32,7 @@ export default class Server implements vscode.Disposable {
             }
         }
 
-        const spawned = spawn(serverExecutable.fsPath, [folder.fsPath]);
+        const spawned = spawn(serverExecutable.fsPath, [workspace.uri.fsPath, '--json-logs']);
 
         const localAddr = "127.0.0.1";
 
@@ -42,8 +42,30 @@ export default class Server implements vscode.Disposable {
             });
         });
 
-        spawned.stderr.on('data', (data) => {
-            console.log(`stderr: ${data}`);
+        const outputChannel = vscode.window.createOutputChannel(`Unity References Server (${workspace.name})`, { log: true });
+
+        spawned.stderr.on('data', (data: Buffer) => {
+            const parsed = JSON.parse(data.toString()) as ServerLog;
+
+            switch (parsed.level) {
+                case "trace":
+                    outputChannel.trace(formatServerLog(parsed));
+                    break;
+                case "debug":
+                    outputChannel.debug(formatServerLog(parsed));
+                    break;
+                case "info":
+                    outputChannel.info(formatServerLog(parsed));
+                    break;
+                case "warn":
+                    outputChannel.warn(formatServerLog(parsed));
+                    break;
+                case "error":
+                    outputChannel.error(formatServerLog(parsed));
+                    break;
+                default:
+                    throw Error(`Unknown log level: ${parsed.level}. Message: ${parsed.message}`);
+            }
         });
 
         spawned.on("close", (code) => {
@@ -68,15 +90,17 @@ export default class Server implements vscode.Disposable {
             });
         });
 
-        return new Server(spawned, await clientPromise);
+        return new Server(spawned, await clientPromise, outputChannel);
     }
 
     dispose() {
+
         if (this.process.exitCode === null) {
-            return;
+            // Process is still running, kill it
+            this.process.kill();
         }
 
-        this.process.kill();
+        this.outputChannel.dispose();
     }
 
     public async status(): Promise<StatusResponse> {
@@ -133,5 +157,17 @@ export type RpcResponse<R, E> =
     };
 
 export enum ServerStartError {
-    MISSING_EXECUTABLE,
+    MISSING_EXECUTABLE = "Missing Executable"
+}
+
+interface ServerLog {
+    level: "trace" | "debug" | "info" | "warn" | "error",
+    timestamp: string,
+    message: string,
+    file?: string,
+    line?: number
+}
+
+function formatServerLog(log: ServerLog): string {
+    return `${log.message}`;
 }
