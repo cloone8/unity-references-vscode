@@ -3,7 +3,7 @@
   "publisher": "cloone8",
   "displayName": "Unity References",
   "description": "Resolve code references within a Unity project",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "engines": {
     "vscode": "^1.96.0"
   },
