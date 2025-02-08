@@ -118,8 +118,8 @@ export default class Server implements vscode.Disposable {
         }
     }
 
-    public async method(method: requests.MethodParam): Promise<requests.MethodResponse[]> {
-        const response = await this.doRawRequest<requests.MethodParam, requests.MethodResponse[], void>("method", method);
+    public async method(method: requests.MethodParam): Promise<requests.MethodResponse> {
+        const response = await this.doRawRequest<requests.MethodParam, requests.MethodResponse, void>("method", method);
 
         if (response.isOk) {
             return response.result;

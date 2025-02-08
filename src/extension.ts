@@ -33,8 +33,7 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.languages.registerCodeLensProvider(filter, new UnityReferences()));
 
     // Commands
-    context.subscriptions.push(vscode.commands.registerCommand('unity-references.restart', commands.restart));
-    context.subscriptions.push(vscode.commands.registerCommand('unity-references.findSymbols', commands.findSymbols));
+    context.subscriptions.push(vscode.commands.registerCommand('unity-references.showReferences', commands.showReferences));
 
     // Listeners
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(workspaces.workspaceFolderChanged));

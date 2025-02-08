@@ -1,30 +1,32 @@
 import * as vscode from 'vscode';
-import * as workspaces from './workspaces';
+import { MethodResponse } from './requests';
 
-export async function restart() {
-    await workspaces.disposeAll();
-    await workspaces.activateAllWorkspaces();
+export async function showReferences(references: References) {
+    const actualReferences = references;
+
+    switch (actualReferences.kind) {
+        case "method":
+            await showMethodReferences(actualReferences);
+            break;
+        default:
+            console.error(`Unknown reference kind: ${actualReferences.kind}`);
+            break;
+    }
 }
 
-export async function findSymbols() {
-    const doc = vscode.window.activeTextEditor?.document.uri;
-    const symbols = await vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', doc) as vscode.DocumentSymbol[];
+async function showMethodReferences(references: MethodReferences) {
+    const chosen = await vscode.window.showQuickPick(references.references.map(ref => ref.file));
 
-    const methods = symbols.map(s => dumpSymbolRecursive(s)).reduce((a, b) => {
-        return { ...a, ...b };
-    }, {});
-
-    vscode.window.showInformationMessage(JSON.stringify(methods));
-}
-
-function dumpSymbolRecursive(symbol: vscode.DocumentSymbol): any {
-    let obj: any = {};
-
-    if (symbol.kind === vscode.SymbolKind.Class) {
-        vscode.window.showInformationMessage(symbol.detail);
+    if (chosen === undefined) {
+        return;
     }
 
-    obj[symbol.name] = symbol.children.map(ch => dumpSymbolRecursive(ch));
+    vscode.window.showTextDocument(await vscode.workspace.openTextDocument(chosen));
+}
 
-    return obj;
+export type References = MethodReferences;
+
+export interface MethodReferences {
+    kind: "method",
+    references: MethodResponse
 }

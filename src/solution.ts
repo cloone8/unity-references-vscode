@@ -16,7 +16,6 @@ export async function getSolutionProjects(solutionFile: vscode.Uri): Promise<Pro
         const assembly = match[1];
         const projectMetaFile = vscode.Uri.joinPath(solutionParentDir, match[2]);
 
-        console.log(`Parsing project file ${projectMetaFile.fsPath} and assembly ${assembly}`);
         const files = await getProjectFiles(solutionParentDir, projectMetaFile);
 
         return {

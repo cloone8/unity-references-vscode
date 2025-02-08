@@ -1,13 +1,12 @@
 import * as vscode from 'vscode';
 import * as workspaces from './workspaces';
+import { MethodReferences } from './commands';
 
 export default class UnityReferences implements vscode.CodeLensProvider<vscode.CodeLens> {
     onDidChangeCodeLenses?: vscode.Event<void> | undefined;
 
     provideCodeLenses(doc: vscode.TextDocument, cancelToken: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens[]> {
         return new Promise(async (resolve) => {
-            console.log(`Codelensing document: ${doc.uri}`);
-
             const server = workspaces.getFileServer(doc.uri);
 
             if (server === undefined) {
@@ -24,7 +23,13 @@ export default class UnityReferences implements vscode.CodeLensProvider<vscode.C
 
             console.log(`File assembly is ${assembly}`);
 
-            const rootSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>("vscode.executeDocumentSymbolProvider", doc.uri);
+            const rootSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[] | undefined>("vscode.executeDocumentSymbolProvider", doc.uri);
+
+            if (rootSymbols === undefined) {
+                console.warn("No document symbol provider present");
+                return;
+            }
+
             const documentMethods = (await Promise.all(rootSymbols.map(s => findMethods(s, undefined)))).flat();
 
             console.log(`Found ${documentMethods.length} methods`);
@@ -45,9 +50,17 @@ export default class UnityReferences implements vscode.CodeLensProvider<vscode.C
             const codeLenses = methodReferences.map(methodAndRefs => {
                 const method = methodAndRefs.method;
                 const refs = methodAndRefs.references;
+
+                const commandArgs: MethodReferences = {
+                    kind: "method",
+                    references: refs
+                };
+
                 const command: vscode.Command = {
                     title: `${refs.length} editor references`,
-                    command: ""
+                    command: "unity-references.showReferences",
+                    arguments: [commandArgs],
+                    tooltip: refs.map(ref => ref.file).join("\n")
                 };
 
                 const codelens = new vscode.CodeLens(method.range, command);
@@ -58,17 +71,9 @@ export default class UnityReferences implements vscode.CodeLensProvider<vscode.C
             resolve(codeLenses);
         });
     }
-
-    // resolveCodeLens?(codeLens: vscode.CodeLens, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens> {
-    //     throw new Error('Method not implemented.');
-    // }
-
 }
 
 async function findMethods(symbol: vscode.DocumentSymbol, clazz?: string): Promise<Method[]> {
-    // const docUri = doc.uri;
-    // const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>('vscode.executeDocumentSymbolProvider', docUri);
-
     let found: Method[] = [];
 
     let actualClass = clazz;

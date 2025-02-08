@@ -15,16 +15,6 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "unity-references.restart",
-        "title": "Unity References: Restart Servers"
-      },
-      {
-        "command": "unity-references.findSymbols",
-        "title": "Unity References: Dump Symbols"
-      }
-    ],
     "configuration": {
       "title": "Unity References",
       "properties": {
