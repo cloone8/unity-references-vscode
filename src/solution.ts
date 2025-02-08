@@ -4,6 +4,7 @@ const solutionCsharpProjectsRegex = /^Project\(".*"\) = "(.*)", "(.*)", ".*"$/gm
 const projectFilesRegex = /^\s*<Compile\s*Include="(.*\.cs)"\s*\/>$/gm;
 
 export async function getSolutionProjects(solutionFile: vscode.Uri): Promise<Project[]> {
+    console.log(`Parsing solution file ${solutionFile.fsPath}}`);
     const solutionParentDir = vscode.Uri.joinPath(solutionFile, '..');
     const fs = vscode.workspace.fs;
 
@@ -13,12 +14,14 @@ export async function getSolutionProjects(solutionFile: vscode.Uri): Promise<Pro
 
     return await Promise.all(projectMatches.map(async (match) => {
         const assembly = match[1];
-        const file = vscode.Uri.joinPath(solutionParentDir, match[2]);
-        const files = await getProjectFiles(solutionParentDir, file);
+        const projectMetaFile = vscode.Uri.joinPath(solutionParentDir, match[2]);
+
+        console.log(`Parsing project file ${projectMetaFile.fsPath} and assembly ${assembly}`);
+        const files = await getProjectFiles(solutionParentDir, projectMetaFile);
 
         return {
             assembly,
-            projectMetaFile: file,
+            projectMetaFile,
             files
         };
     }));
@@ -36,6 +39,6 @@ async function getProjectFiles(rootDir: vscode.Uri, projectMetaFile: vscode.Uri)
 
 export interface Project {
     projectMetaFile: vscode.Uri,
-    assembly: string
-    files: vscode.Uri[]
+    assembly: string,
+    files: vscode.Uri[],
 };

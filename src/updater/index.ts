@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { fetchLatestRelease } from './latest';
 import * as semver from '../semver';
 import { downloadAndInstallRelease } from './download';
-import { SERVER_DIRECTORY } from '../extension';
+import { SERVER_STORAGE_DIR } from '../extension';
 
 export const SERVER_MAJOR_VERSION: number = 0;
 
@@ -37,7 +37,7 @@ export async function ensureLatest(ctx: vscode.ExtensionContext, force: boolean 
 
     try {
         // Download and unpack
-        await downloadAndInstallRelease(latestRelease.platformAssetUrl, latestRelease.platformAssetName, vscode.Uri.joinPath(ctx.globalStorageUri, SERVER_DIRECTORY));
+        await downloadAndInstallRelease(latestRelease.platformAssetUrl, latestRelease.platformAssetName, vscode.Uri.joinPath(ctx.globalStorageUri, SERVER_STORAGE_DIR));
 
         // Update the latest installed version in the global state
         await ctx.globalState.update(SERVER_TAG_STORAGE_KEY, latestRelease.tag);

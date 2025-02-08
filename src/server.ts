@@ -3,9 +3,11 @@ import * as jayson from "jayson/promise";
 
 import { ChildProcess, spawn } from 'child_process';
 import { WebSocket } from "ws";
-import { StatusResponse } from "./requests";
+import * as requests from "./requests";
 
 export default class Server implements vscode.Disposable {
+    public static serverExecutablePath?: vscode.Uri;
+
     private process: ChildProcess;
     private client: jayson.Client;
     private outputChannel: vscode.LogOutputChannel;
@@ -16,14 +18,17 @@ export default class Server implements vscode.Disposable {
         this.outputChannel = outputChannel;
     }
 
-    static async start(serverExecutable: vscode.Uri, workspace: vscode.WorkspaceFolder): Promise<Server | ServerStartError> {
+    static async start(workspace: vscode.WorkspaceFolder): Promise<Server | ServerStartError> {
         console.log("Starting executable");
-        console.log(serverExecutable.fsPath);
+
+        if (this.serverExecutablePath === undefined) {
+            return ServerStartError.EXECUTABLE_NOT_SET;
+        }
 
         let executableStat: vscode.FileStat;
 
         try {
-            executableStat = await vscode.workspace.fs.stat(serverExecutable);
+            executableStat = await vscode.workspace.fs.stat(this.serverExecutablePath);
         } catch (e) {
             if (e instanceof vscode.FileSystemError && e.code === "FileNotFound") {
                 return ServerStartError.MISSING_EXECUTABLE;
@@ -32,7 +37,7 @@ export default class Server implements vscode.Disposable {
             }
         }
 
-        const spawned = spawn(serverExecutable.fsPath, [workspace.uri.fsPath, '--json-logs']);
+        const spawned = spawn(this.serverExecutablePath.fsPath, [workspace.uri.fsPath, '--json-logs']);
 
         const localAddr = "127.0.0.1";
 
@@ -103,8 +108,18 @@ export default class Server implements vscode.Disposable {
         this.outputChannel.dispose();
     }
 
-    public async status(): Promise<StatusResponse> {
-        const response = await this.doRawRequest<undefined, StatusResponse, void>("status");
+    public async status(): Promise<requests.StatusResponse> {
+        const response = await this.doRawRequest<undefined, requests.StatusResponse, void>("status");
+
+        if (response.isOk) {
+            return response.result;
+        } else {
+            throw new Error(`RPC Error: ${response.error}`);
+        }
+    }
+
+    public async method(method: requests.MethodParam): Promise<requests.MethodResponse[]> {
+        const response = await this.doRawRequest<requests.MethodParam, requests.MethodResponse[], void>("method", method);
 
         if (response.isOk) {
             return response.result;
@@ -157,7 +172,8 @@ export type RpcResponse<R, E> =
     };
 
 export enum ServerStartError {
-    MISSING_EXECUTABLE = "Missing Executable"
+    EXECUTABLE_NOT_SET = "Executable path not set",
+    MISSING_EXECUTABLE = "Missing executable"
 }
 
 interface ServerLog {
