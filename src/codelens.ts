@@ -6,69 +6,76 @@ export default class UnityReferences implements vscode.CodeLensProvider<vscode.C
     onDidChangeCodeLenses?: vscode.Event<void> | undefined;
 
     provideCodeLenses(doc: vscode.TextDocument, cancelToken: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens[]> {
-        return new Promise(async (resolve) => {
-            const server = workspaces.getFileServer(doc.uri);
+        return new Promise(async (resolve, reject) => {
+            try {
+                const server = workspaces.getFileServer(doc.uri);
 
-            if (server === undefined) {
-                console.error(`Could not find server for file ${doc.uri}`);
-                return;
-            }
+                if (server === undefined) {
+                    console.error(`Could not find server for file ${doc.uri}`);
+                    resolve([]);
+                    return;
+                }
 
-            const assembly = workspaces.getFileAssembly(doc.uri);
+                const assembly = workspaces.getFileAssembly(doc.uri);
 
-            if (assembly === undefined) {
-                console.error(`Could not find assembly for file ${doc.uri}`);
-                return;
-            }
+                if (assembly === undefined) {
+                    console.error(`Could not find assembly for file ${doc.uri}`);
+                    resolve([]);
+                    return;
+                }
 
-            console.log(`File assembly is ${assembly}`);
+                console.log(`File assembly is ${assembly}`);
 
-            const rootSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[] | undefined>("vscode.executeDocumentSymbolProvider", doc.uri);
+                const rootSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[] | undefined>("vscode.executeDocumentSymbolProvider", doc.uri);
 
-            if (rootSymbols === undefined) {
-                console.warn("No document symbol provider present");
-                return;
-            }
+                if (rootSymbols === undefined) {
+                    console.warn("No document symbol provider present");
+                    resolve([]);
+                    return;
+                }
 
-            const documentMethods = (await Promise.all(rootSymbols.map(s => findMethods(s, undefined)))).flat();
+                const documentMethods = (await Promise.all(rootSymbols.map(s => findMethods(s, undefined)))).flat();
 
-            console.log(`Found ${documentMethods.length} methods`);
+                console.log(`Found ${documentMethods.length} methods`);
 
-            const methodReferences = await Promise.all(documentMethods.map(async (m) => {
-                let methodReferences = await server.method({
-                    method_assembly: assembly,
-                    method_name: m.name,
-                    method_typename: m.class
+                const methodReferences = await Promise.all(documentMethods.map(async (m) => {
+                    let methodReferences = await server.method({
+                        method_assembly: assembly,
+                        method_name: m.name,
+                        method_typename: m.class
+                    });
+
+                    return {
+                        method: m,
+                        references: methodReferences
+                    };
+                }));
+
+                const codeLenses = methodReferences.map(methodAndRefs => {
+                    const method = methodAndRefs.method;
+                    const refs = methodAndRefs.references;
+
+                    const commandArgs: MethodReferences = {
+                        kind: "method",
+                        references: refs
+                    };
+
+                    const command: vscode.Command = {
+                        title: `${refs.length} editor references`,
+                        command: "unity-references.showReferences",
+                        arguments: [commandArgs],
+                        tooltip: refs.map(ref => ref.file).join("\n")
+                    };
+
+                    const codelens = new vscode.CodeLens(method.range, command);
+
+                    return codelens;
                 });
 
-                return {
-                    method: m,
-                    references: methodReferences
-                };
-            }));
-
-            const codeLenses = methodReferences.map(methodAndRefs => {
-                const method = methodAndRefs.method;
-                const refs = methodAndRefs.references;
-
-                const commandArgs: MethodReferences = {
-                    kind: "method",
-                    references: refs
-                };
-
-                const command: vscode.Command = {
-                    title: `${refs.length} editor references`,
-                    command: "unity-references.showReferences",
-                    arguments: [commandArgs],
-                    tooltip: refs.map(ref => ref.file).join("\n")
-                };
-
-                const codelens = new vscode.CodeLens(method.range, command);
-
-                return codelens;
-            });
-
-            resolve(codeLenses);
+                resolve(codeLenses);
+            } catch (e) {
+                reject(e);
+            }
         });
     }
 }
