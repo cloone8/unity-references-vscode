@@ -47,7 +47,7 @@ the returned information in a presentable manner.
 
 ## Extension Settings
 
-* `unity-references.custonServerPath`: By default, this extension downloads the latest server binary from the server [github repository](https://github.com/cloone8/unity-reference-server). By setting this to a value other than `""`, a custom reference provider server can be used instead.
+* `unity-references.customServerPath`: By default, this extension downloads the latest server binary from the server [github repository](https://github.com/cloone8/unity-reference-server). By setting this to a value other than `""`, a custom reference provider server can be used instead.
 
 
 ## Release Notes
