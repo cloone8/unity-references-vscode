@@ -24,8 +24,6 @@ export default class UnityReferences implements vscode.CodeLensProvider<vscode.C
                     return;
                 }
 
-                console.log(`File assembly is ${assembly}`);
-
                 const rootSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[] | undefined>("vscode.executeDocumentSymbolProvider", doc.uri);
 
                 if (rootSymbols === undefined) {
@@ -35,8 +33,6 @@ export default class UnityReferences implements vscode.CodeLensProvider<vscode.C
                 }
 
                 const documentMethods = (await Promise.all(rootSymbols.map(s => findMethods(s, undefined)))).flat();
-
-                console.log(`Found ${documentMethods.length} methods`);
 
                 const methodReferences = await Promise.all(documentMethods.map(async (m) => {
                     let methodReferences = await server.method({
@@ -51,26 +47,34 @@ export default class UnityReferences implements vscode.CodeLensProvider<vscode.C
                     };
                 }));
 
-                const codeLenses = methodReferences.map(methodAndRefs => {
-                    const method = methodAndRefs.method;
-                    const refs = methodAndRefs.references;
+                const codeLenses = methodReferences
+                    .map(methodAndRefs => {
+                        const method = methodAndRefs.method;
+                        const refs = methodAndRefs.references;
 
-                    const commandArgs: MethodReferences = {
-                        kind: "method",
-                        references: refs
-                    };
+                        if (refs.length === 0) {
+                            return undefined;
+                        }
 
-                    const command: vscode.Command = {
-                        title: `${refs.length} editor references`,
-                        command: "unity-references.showReferences",
-                        arguments: [commandArgs],
-                        tooltip: refs.map(ref => ref.file).join("\n")
-                    };
+                        const commandArgs: MethodReferences = {
+                            kind: "method",
+                            references: refs
+                        };
 
-                    const codelens = new vscode.CodeLens(method.range, command);
+                        const title = refs.length === 1 ? "1 editor reference" : `${refs.length} editor references`;
 
-                    return codelens;
-                });
+                        const command: vscode.Command = {
+                            title,
+                            command: "unity-references.showReferences",
+                            arguments: [commandArgs],
+                            tooltip: refs.map(ref => ref.file).join("\n")
+                        };
+
+                        const codelens = new vscode.CodeLens(method.range, command);
+
+                        return codelens;
+                    })
+                    .filter(cl => cl !== undefined);
 
                 resolve(codeLenses);
             } catch (e) {

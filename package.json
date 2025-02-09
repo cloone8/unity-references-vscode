@@ -3,6 +3,7 @@
   "publisher": "cloone8",
   "displayName": "Unity References",
   "description": "Resolve code references within a Unity project",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/cloone8/unity-references-vscode"
