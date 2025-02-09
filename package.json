@@ -13,7 +13,23 @@
     "vscode": "^1.96.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "unity",
+    "unity3d",
+    "c#",
+    "csharp",
+    "dotnet",
+    ".net",
+    "gamedev",
+    "references",
+    "reference",
+    "editor",
+    "yaml",
+    "monobehaviour",
+    "event"
   ],
   "activationEvents": [
     "onLanguage:csharp"

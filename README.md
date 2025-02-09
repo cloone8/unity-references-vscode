@@ -1,70 +1,55 @@
-# unity-references-vscode
-Visual Studio Code extension for resolving code references in Unity projects
+# Unity References
+
+A Visual Studio Code extension for resolving code references in Unity objects
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+This extension provides codelenses for C# methods, showing where these methods are used in non-script Unity objects.
+For example, given an editor function reference like:
 
-For example if there is an image subfolder under your extension project workspace:
+![Editor Reference](readme_img/editor_ref.png)
 
-\!\[feature X\]\(images/feature-x.png\)
+...The reference will show up like:
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+![Codelens](readme_img/codelens.png)
 
-## Requirements
+You can then interact with the codelens (or hover over it) to show the list of references.
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+## Why?
+
+There are a few extensions that do roughly the same, but I think all of them are kind of incomplete and haven't been
+maintained in a long time. I work with Unity daily, and having something like this could be a huge help to me and others (without having to pay for JB Rider).
+
+## Known Issues & planned features
+
+Although this extension **does not report any false positives**, it's very much new and under development. If you encounter a bug or have a suggestion, feel free to file an [issue](https://github.com/cloone8/unity-references-vscode/issues) or create a [pull request](https://github.com/cloone8/unity-references-vscode/pulls). However, I am working on this in my free time so I cannot guarantee that feature requests will be implemented in a timely manner, or at all.
+
+Known issues
+
+- The server does not properly refresh references when yaml files have been changed on-disk
+- Prefab overrides are not properly parsed yet
+- Unity YAML is not fully compliant to the YAML spec, so some meta prefab and scene files are not properly parsed
+
+Currently planned features
+
+- MonoBehaviour/ScriptableObject references: Currently, the extension finds references for methods only. It would be pretty doable to extend this to classes too.
+- Better reference location parsing: Currently, a reference is resolved only to the file. For example, you can see that a function was referenced in file `foo.prefab`. This could be extended to a specific line in that file, or maybe even the name of the GameObject/script.
+
+## How does it work?
+
+The extension is basically a two-parter:
+
+* A server (https://github.com/cloone8/unity-reference-server) which parses the unity project YAML files and searches them for C# function references.
+* This extension, which hooks into the vscode codelens and LSP APIs in order to send search queries for C# functions to the server.
+
+This way, the server can work fully asynchronously and as fast as possible, while the extension just has to worry about presenting
+the returned information in a presentable manner.
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+* `unity-references.custonServerPath`: By default, this extension downloads the latest server binary from the server [github repository](https://github.com/cloone8/unity-reference-server). By setting this to a value other than `""`, a custom reference provider server can be used instead.
 
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+See [the changelog](https://github.com/cloone8/unity-references-vscode/blob/master/CHANGELOG.md)
