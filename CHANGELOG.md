@@ -2,6 +2,8 @@
 
 All notable changes to the "unity-references" extension will be documented in this file.
 
+## [Unreleased]
+
 ## [v1.0.3]
 
 - Updated extension keywords, categories, etc.
