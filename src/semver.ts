@@ -45,5 +45,5 @@ export function compare(a: SemVer, b: SemVer): number {
 }
 
 export function isNewer(current: SemVer, other: SemVer): boolean {
-    return compare(current, other) > 1;
+    return compare(current, other) >= 1;
 }

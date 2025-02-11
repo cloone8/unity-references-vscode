@@ -29,7 +29,7 @@ export async function ensureLatest(ctx: vscode.ExtensionContext, force: boolean 
     const needsInstall = currentVersion === undefined || (semver.isNewer(currentVersion, semver.fromGitTag(latestRelease.tag)!));
 
     if (!force && !needsInstall) {
-        console.log("Server already up to date, not downloading latest");
+        console.log(`Server already up to date (${JSON.stringify(currentVersion)}), not downloading latest (${JSON.stringify(semver.fromGitTag(latestRelease.tag)!)})`);
         return;
     }
 

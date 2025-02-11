@@ -49,28 +49,19 @@ export default class Server implements vscode.Disposable {
 
         const outputChannel = vscode.window.createOutputChannel(`Unity References Server (${workspace.name})`, { log: true });
 
+        let logBuf = "";
         spawned.stderr.on('data', (data: Buffer) => {
-            const parsed = JSON.parse(data.toString()) as ServerLog;
+            logBuf += data.toString('utf-8');
 
-            switch (parsed.level) {
-                case "trace":
-                    outputChannel.trace(formatServerLog(parsed));
-                    break;
-                case "debug":
-                    outputChannel.debug(formatServerLog(parsed));
-                    break;
-                case "info":
-                    outputChannel.info(formatServerLog(parsed));
-                    break;
-                case "warn":
-                    outputChannel.warn(formatServerLog(parsed));
-                    break;
-                case "error":
-                    outputChannel.error(formatServerLog(parsed));
-                    break;
-                default:
-                    throw Error(`Unknown log level: ${parsed.level}. Message: ${parsed.message}`);
+            while (logBuf.includes("\n")) {
+                const newlinePos = logBuf.indexOf("\n");
+
+                const chunk = logBuf.substring(0, newlinePos + 1);
+                writeLog(outputChannel, chunk);
+
+                logBuf = logBuf.substring(newlinePos + 1);
             }
+
         });
 
         spawned.on("close", (code) => {
@@ -186,4 +177,34 @@ interface ServerLog {
 
 function formatServerLog(log: ServerLog): string {
     return `${log.message}`;
+}
+
+function writeLog(outputChannel: vscode.LogOutputChannel, rawLog: string) {
+    try {
+        const parsed = JSON.parse(rawLog) as ServerLog;
+
+        switch (parsed.level) {
+            case "trace":
+                outputChannel.trace(formatServerLog(parsed));
+                break;
+            case "debug":
+                outputChannel.debug(formatServerLog(parsed));
+                break;
+            case "info":
+                outputChannel.info(formatServerLog(parsed));
+                break;
+            case "warn":
+                outputChannel.warn(formatServerLog(parsed));
+                break;
+            case "error":
+                outputChannel.error(formatServerLog(parsed));
+                break;
+            default:
+                throw Error(`Unknown log level: ${parsed.level}. Message: ${parsed.message}`);
+        }
+    } catch (e) {
+        const msg = `Unparsable log: ${rawLog}`;
+        console.error(msg);
+        outputChannel.error(msg);
+    }
 }
