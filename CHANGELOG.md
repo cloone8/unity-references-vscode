@@ -2,7 +2,10 @@
 
 All notable changes to the "unity-references" extension will be documented in this file.
 
-## [Unreleased]
+## [v1.0.4]
+
+- Fixed bug where the latest server version was not properly downloaded
+- Fixed bug where server logs were incorrectly parsed (needs server version v0.1.5)
 
 ## [v1.0.3]
 
